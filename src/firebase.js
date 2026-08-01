@@ -1,4 +1,5 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp } from "firebase/app";
+import { getAnalytics, isSupported } from "firebase/analytics";
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -11,18 +12,27 @@ import {
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  projectId: "whatsapp-2eebe",
-  appId: "1:255469820332:web:61dd2c4b530c348c454209",
-  storageBucket: "whatsapp-2eebe.firebasestorage.app",
   apiKey: "AIzaSyCIK5BnhrlIDePf5Tc4WOBQu5LpNl63_5c",
   authDomain: "whatsapp-2eebe.firebaseapp.com",
+  projectId: "whatsapp-2eebe",
+  storageBucket: "whatsapp-2eebe.firebasestorage.app",
   messagingSenderId: "255469820332",
-  measurementId: "G-64SP9Z6XLB"
+  appId: "1:255469820332:web:416c8e38ecf0a45f454209",
+  measurementId: "G-42F2BSJJDL"
 };
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
+
+// Initialize Firebase Analytics conditionally
+export let analytics;
+isSupported().then((supported) => {
+  if (supported) {
+    analytics = getAnalytics(app);
+  }
+});
 
 // Initialize Firebase Authentication
 export const auth = getAuth(app);
