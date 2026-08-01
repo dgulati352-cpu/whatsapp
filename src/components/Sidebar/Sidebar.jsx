@@ -16,12 +16,10 @@ import {
   User, 
   Settings, 
   Filter,
-  Image as ImageIcon,
-  Mic,
-  FileText
+  ShieldCheck
 } from 'lucide-react';
 
-export const Sidebar = ({ onOpenProfile, onOpenStatusModal, onOpenNewChatModal }) => {
+export const Sidebar = ({ onOpenProfile, onOpenStatusModal, onOpenNewChatModal, onOpenAuthModal }) => {
   const { 
     user, 
     contacts, 
@@ -57,10 +55,27 @@ export const Sidebar = ({ onOpenProfile, onOpenStatusModal, onOpenNewChatModal }
             onClick={onOpenProfile}
             title="Profile Details"
           />
-          <span style={{ fontWeight: 600, fontSize: '15px' }}>{user.name}</span>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 600, fontSize: '15px' }}>{user.name}</span>
+            {user.email && (
+              <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 500 }}>
+                {user.email}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="sidebar-actions">
+          {/* Firebase Auth Trigger Button */}
+          <button 
+            className="icon-btn"
+            onClick={onOpenAuthModal}
+            title="Firebase Authentication (Email, Google, Phone)"
+            style={{ color: 'var(--accent)' }}
+          >
+            <ShieldCheck size={20} />
+          </button>
+
           {/* Status / Stories Button */}
           <button 
             className={`icon-btn ${unseenStatusesExist ? 'active' : ''}`}
@@ -124,6 +139,12 @@ export const Sidebar = ({ onOpenProfile, onOpenStatusModal, onOpenNewChatModal }
                   zIndex: 50
                 }}
               >
+                <div 
+                  style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}
+                  onClick={() => { onOpenAuthModal(); setShowMenu(false); }}
+                >
+                  <ShieldCheck size={16} /> Firebase Auth
+                </div>
                 <div 
                   style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}
                   onClick={() => { onOpenProfile(); setShowMenu(false); }}
