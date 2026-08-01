@@ -6,7 +6,8 @@ import {
   logInWithGoogle, 
   logOut, 
   setupRecaptcha, 
-  sendPhoneOtp 
+  sendPhoneOtp,
+  sendEmailOtpLink
 } from '../../firebase';
 import { 
   X, 
@@ -33,7 +34,7 @@ const COUNTRY_CODES = [
 
 export const AuthModal = ({ onClose }) => {
   const { user, setUser } = useWhatsApp();
-  const [authMethod, setAuthMethod] = useState('phone'); // Default to Phone OTP for WhatsApp!
+  const [authMethod, setAuthMethod] = useState('phone-otp'); // 'phone-otp' | 'email-otp' | 'password' | 'google'
   const [isSignUp, setIsSignUp] = useState(false);
 
   // Phone OTP States
@@ -46,6 +47,7 @@ export const AuthModal = ({ onClose }) => {
   // Email States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -78,7 +80,6 @@ export const AuthModal = ({ onClose }) => {
       setResendTimer(30);
     } catch (err) {
       console.error(err);
-      // Fallback for test environments
       setErrorMsg(err.message?.replace('Firebase: ', '') || 'Failed to send SMS. Ensure Phone Auth is enabled in Firebase.');
     } finally {
       setLoading(false);
@@ -111,7 +112,7 @@ export const AuthModal = ({ onClose }) => {
           setTimeout(() => onClose(), 1200);
         }
       } else {
-        // Simulated success for demo test numbers
+        // Fallback demo signed in state
         setUser((prev) => ({
           ...prev,
           name: `User (${fullPhoneNumber})`,
@@ -123,6 +124,25 @@ export const AuthModal = ({ onClose }) => {
       }
     } catch (err) {
       setErrorMsg('Invalid OTP code. Please check the 6-digit code and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendEmailOtpLink = async (e) => {
+    e.preventDefault();
+    if (!email) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    try {
+      await sendEmailOtpLink(email);
+      window.localStorage.setItem('emailForSignIn', email);
+      setEmailOtpSent(true);
+      setSuccessMsg(`Instant OTP sign-in link sent to ${email}! Check your inbox.`);
+    } catch (err) {
+      setErrorMsg(err.message.replace('Firebase: ', ''));
     } finally {
       setLoading(false);
     }
@@ -207,7 +227,7 @@ export const AuthModal = ({ onClose }) => {
       backdropFilter: 'blur(6px)'
     }}>
       <div style={{
-        backgroundColor: 'var(--bg-secondary)', width: '440px', maxWidth: '94vw',
+        backgroundColor: 'var(--bg-secondary)', width: '450px', maxWidth: '94vw',
         borderRadius: '16px', border: '1px solid var(--border-color)',
         boxShadow: 'var(--shadow-lg)', overflow: 'hidden', display: 'flex', flexDirection: 'column'
       }}>
@@ -219,7 +239,7 @@ export const AuthModal = ({ onClose }) => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <MessageSquare size={20} style={{ color: 'var(--accent)' }} />
-            <h3 style={{ fontSize: '18px', fontWeight: 600 }}>WhatsApp Phone & Auth</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 600 }}>WhatsApp OTP & Login</h3>
           </div>
           <button 
             onClick={onClose}
@@ -255,18 +275,24 @@ export const AuthModal = ({ onClose }) => {
           )}
 
           {/* Method Selector Tabs */}
-          <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+          <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', overflowX: 'auto' }}>
             <button 
-              onClick={() => setAuthMethod('phone')}
-              className={`filter-chip ${authMethod === 'phone' ? 'active' : ''}`}
+              onClick={() => setAuthMethod('phone-otp')}
+              className={`filter-chip ${authMethod === 'phone-otp' ? 'active' : ''}`}
             >
-              📱 Phone OTP
+              📱 Phone SMS OTP
             </button>
             <button 
-              onClick={() => setAuthMethod('email')}
-              className={`filter-chip ${authMethod === 'email' ? 'active' : ''}`}
+              onClick={() => setAuthMethod('email-otp')}
+              className={`filter-chip ${authMethod === 'email-otp' ? 'active' : ''}`}
             >
-              ✉️ Email
+              ✉️ Email Link OTP
+            </button>
+            <button 
+              onClick={() => setAuthMethod('password')}
+              className={`filter-chip ${authMethod === 'password' ? 'active' : ''}`}
+            >
+              🔑 Password
             </button>
             <button 
               onClick={() => setAuthMethod('google')}
@@ -276,13 +302,13 @@ export const AuthModal = ({ onClose }) => {
             </button>
           </div>
 
-          {/* Phone SMS OTP Auth Workflow */}
-          {authMethod === 'phone' && (
+          {/* 1. Phone SMS OTP Auth Workflow */}
+          {authMethod === 'phone-otp' && (
             <div>
               {!confirmationResult ? (
                 <form onSubmit={handleSendPhoneOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-                    Enter your phone number to receive a 6-digit WhatsApp SMS OTP verification code:
+                    Enter your phone number to receive a 6-digit SMS OTP verification code:
                   </p>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -337,7 +363,7 @@ export const AuthModal = ({ onClose }) => {
                       justifyContent: 'center', gap: '8px'
                     }}
                   >
-                    {loading ? 'Sending OTP Code...' : 'Request OTP Verification Code'}
+                    {loading ? 'Sending SMS OTP...' : 'Send SMS OTP Code'}
                   </button>
                 </form>
               ) : (
@@ -359,7 +385,7 @@ export const AuthModal = ({ onClose }) => {
                     <input 
                       type="text" 
                       maxLength={6}
-                      placeholder="Enter 6-digit OTP (e.g. 123456)"
+                      placeholder="Enter 6-digit OTP"
                       required
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value)}
@@ -380,7 +406,7 @@ export const AuthModal = ({ onClose }) => {
                       cursor: 'pointer'
                     }}
                   >
-                    {loading ? 'Verifying Code...' : 'Verify OTP & Sign In'}
+                    {loading ? 'Verifying OTP...' : 'Verify OTP & Sign In'}
                   </button>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
@@ -411,8 +437,41 @@ export const AuthModal = ({ onClose }) => {
             </div>
           )}
 
-          {/* Email / Password Form */}
-          {authMethod === 'email' && (
+          {/* 2. Email Link OTP Workflow */}
+          {authMethod === 'email-otp' && (
+            <form onSubmit={handleSendEmailOtpLink} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+                Enter your email address to receive an instant passwordless OTP sign-in link:
+              </p>
+
+              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-primary)', borderRadius: '8px', padding: '10px 12px', gap: '10px' }}>
+                <Mail size={18} style={{ color: 'var(--accent)' }} />
+                <input 
+                  type="email" 
+                  placeholder="your.email@example.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-primary)', outline: 'none', flex: 1, fontSize: '14px' }}
+                />
+              </div>
+
+              <button 
+                type="submit"
+                disabled={loading}
+                style={{
+                  backgroundColor: 'var(--accent)', color: '#111b21', border: 'none',
+                  borderRadius: '8px', padding: '12px', fontWeight: 600, fontSize: '14.5px',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                }}
+              >
+                {loading ? 'Sending Link...' : 'Send Passwordless Email OTP Link'}
+              </button>
+            </form>
+          )}
+
+          {/* 3. Password Auth Form */}
+          {authMethod === 'password' && (
             <form onSubmit={handleEmailAuth} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-primary)', borderRadius: '8px', padding: '10px 12px', gap: '10px' }}>
                 <Mail size={18} style={{ color: 'var(--text-secondary)' }} />
@@ -447,7 +506,7 @@ export const AuthModal = ({ onClose }) => {
                   cursor: 'pointer', marginTop: '6px'
                 }}
               >
-                {loading ? 'Processing...' : isSignUp ? 'Sign Up with Email' : 'Sign In with Email'}
+                {loading ? 'Processing...' : isSignUp ? 'Sign Up with Password' : 'Sign In with Password'}
               </button>
 
               <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', marginTop: '4px' }} onClick={() => setIsSignUp(!isSignUp)}>
@@ -456,7 +515,7 @@ export const AuthModal = ({ onClose }) => {
             </form>
           )}
 
-          {/* Google Sign-In */}
+          {/* 4. Google Sign-In */}
           {authMethod === 'google' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '10px 0' }}>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', textAlign: 'center' }}>

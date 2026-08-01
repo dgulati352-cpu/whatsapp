@@ -8,7 +8,10 @@ import {
   signInWithPopup, 
   signOut as firebaseSignOut,
   RecaptchaVerifier,
-  signInWithPhoneNumber
+  signInWithPhoneNumber,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
@@ -74,5 +77,20 @@ export const setupRecaptcha = (containerId) => {
 export const sendPhoneOtp = (phoneNumber, appVerifier) => {
   return signInWithPhoneNumber(auth, phoneNumber, appVerifier);
 };
+
+// Email OTP / Link Authentication helpers
+export const sendEmailOtpLink = (email) => {
+  const actionCodeSettings = {
+    url: window.location.href,
+    handleCodeInApp: true
+  };
+  return sendSignInLinkToEmail(auth, email, actionCodeSettings);
+};
+
+export const completeEmailOtpLogin = (email, href = window.location.href) => {
+  return signInWithEmailLink(auth, email, href);
+};
+
+export { isSignInWithEmailLink };
 
 export default app;
