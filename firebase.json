@@ -5,6 +5,7 @@
     ],
     "providers": {
       "emailPassword": true,
+      "phone": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "WhatsApp Web App",
         "supportEmail": "dhairyagulati352@gmail.com"

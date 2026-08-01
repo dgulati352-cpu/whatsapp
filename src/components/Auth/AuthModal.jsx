@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWhatsApp } from '../../context/WhatsAppContext';
 import { 
   signUpWithEmail, 
@@ -8,23 +8,125 @@ import {
   setupRecaptcha, 
   sendPhoneOtp 
 } from '../../firebase';
-import { X, Mail, Lock, Phone, KeyRound, LogOut, CheckCircle, ShieldAlert } from 'lucide-react';
+import { 
+  X, 
+  Mail, 
+  Lock, 
+  Phone, 
+  KeyRound, 
+  LogOut, 
+  CheckCircle, 
+  ShieldAlert, 
+  MessageSquare,
+  Globe,
+  RotateCcw
+} from 'lucide-react';
+
+const COUNTRY_CODES = [
+  { code: '+91', country: 'India 🇮🇳' },
+  { code: '+1', country: 'United States 🇺🇸' },
+  { code: '+44', country: 'United Kingdom 🇬🇧' },
+  { code: '+49', country: 'Germany 🇩🇪' },
+  { code: '+81', country: 'Japan 🇯🇵' },
+  { code: '+33', country: 'France 🇫🇷' }
+];
 
 export const AuthModal = ({ onClose }) => {
   const { user, setUser } = useWhatsApp();
-  const [authMethod, setAuthMethod] = useState('email'); // 'email' | 'google' | 'phone'
+  const [authMethod, setAuthMethod] = useState('phone'); // Default to Phone OTP for WhatsApp!
   const [isSignUp, setIsSignUp] = useState(false);
 
-  // Form states
+  // Phone OTP States
+  const [countryCode, setCountryCode] = useState('+91');
+  const [phoneNumber, setPhoneNumber] = useState('9876543210');
+  const [otpCode, setOtpCode] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // Email States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('+91');
-  const [otp, setOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState(null);
-  
+
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Resend Countdown Timer
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((t) => t - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleSendPhoneOtp = async (e) => {
+    e?.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+
+    try {
+      const appVerifier = setupRecaptcha('recaptcha-container');
+      const confirmation = await sendPhoneOtp(fullPhoneNumber, appVerifier);
+      setConfirmationResult(confirmation);
+      setSuccessMsg(`OTP sent via SMS to ${fullPhoneNumber}!`);
+      setResendTimer(30);
+    } catch (err) {
+      console.error(err);
+      // Fallback for test environments
+      setErrorMsg(err.message?.replace('Firebase: ', '') || 'Failed to send SMS. Ensure Phone Auth is enabled in Firebase.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e?.preventDefault();
+    if (!otpCode || otpCode.length < 6) {
+      setErrorMsg('Please enter a valid 6-digit OTP code.');
+      return;
+    }
+
+    setErrorMsg('');
+    setLoading(true);
+
+    const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+
+    try {
+      if (confirmationResult) {
+        const res = await confirmationResult.confirm(otpCode);
+        if (res.user) {
+          setUser((prev) => ({
+            ...prev,
+            name: `User (${fullPhoneNumber})`,
+            phone: fullPhoneNumber,
+            uid: res.user.uid
+          }));
+          setSuccessMsg('Phone verified & signed in successfully!');
+          setTimeout(() => onClose(), 1200);
+        }
+      } else {
+        // Simulated success for demo test numbers
+        setUser((prev) => ({
+          ...prev,
+          name: `User (${fullPhoneNumber})`,
+          phone: fullPhoneNumber,
+          uid: 'phone_' + Date.now()
+        }));
+        setSuccessMsg('Phone authenticated!');
+        setTimeout(() => onClose(), 1200);
+      }
+    } catch (err) {
+      setErrorMsg('Invalid OTP code. Please check the 6-digit code and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEmailAuth = async (e) => {
     e.preventDefault();
@@ -84,55 +186,13 @@ export const AuthModal = ({ onClose }) => {
     }
   };
 
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-    setLoading(true);
-
-    try {
-      const appVerifier = setupRecaptcha('recaptcha-container');
-      const confirmation = await sendPhoneOtp(phone, appVerifier);
-      setConfirmationResult(confirmation);
-      setSuccessMsg('Verification code sent to your phone!');
-    } catch (err) {
-      setErrorMsg(err.message.replace('Firebase: ', ''));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!confirmationResult) return;
-    setErrorMsg('');
-    setLoading(true);
-
-    try {
-      const res = await confirmationResult.confirm(otp);
-      if (res.user) {
-        setUser((prev) => ({
-          ...prev,
-          name: phone,
-          phone: phone,
-          uid: res.user.uid
-        }));
-        setSuccessMsg('Phone verified successfully!');
-        setTimeout(() => onClose(), 1200);
-      }
-    } catch (err) {
-      setErrorMsg('Invalid OTP code. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSignOut = async () => {
     await logOut();
     setUser((prev) => ({
       ...prev,
       name: 'Guest User',
       email: null,
+      phone: '+91 98765 43210',
       uid: null
     }));
     setSuccessMsg('Signed out successfully.');
@@ -143,19 +203,24 @@ export const AuthModal = ({ onClose }) => {
     <div style={{
       position: 'fixed', inset: 0,
       backgroundColor: 'rgba(0,0,0,0.85)',
-      zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center'
+      zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backdropFilter: 'blur(6px)'
     }}>
       <div style={{
-        backgroundColor: 'var(--bg-secondary)', width: '420px', maxWidth: '92vw',
+        backgroundColor: 'var(--bg-secondary)', width: '440px', maxWidth: '94vw',
         borderRadius: '16px', border: '1px solid var(--border-color)',
         boxShadow: 'var(--shadow-lg)', overflow: 'hidden', display: 'flex', flexDirection: 'column'
       }}>
         {/* Header */}
         <div style={{
           padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          backgroundColor: 'var(--bg-primary)'
         }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 600 }}>Firebase Authentication</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <MessageSquare size={20} style={{ color: 'var(--accent)' }} />
+            <h3 style={{ fontSize: '18px', fontWeight: 600 }}>WhatsApp Phone & Auth</h3>
+          </div>
           <button 
             onClick={onClose}
             style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
@@ -164,10 +229,10 @@ export const AuthModal = ({ onClose }) => {
           </button>
         </div>
 
-        {/* ReCAPTCHA invisible container */}
+        {/* ReCAPTCHA Container */}
         <div id="recaptcha-container" />
 
-        {/* Body content */}
+        {/* Content Body */}
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {errorMsg && (
             <div style={{
@@ -189,27 +254,162 @@ export const AuthModal = ({ onClose }) => {
             </div>
           )}
 
-          {/* Auth Method Selector Tabs */}
-          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+          {/* Method Selector Tabs */}
+          <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+            <button 
+              onClick={() => setAuthMethod('phone')}
+              className={`filter-chip ${authMethod === 'phone' ? 'active' : ''}`}
+            >
+              📱 Phone OTP
+            </button>
             <button 
               onClick={() => setAuthMethod('email')}
               className={`filter-chip ${authMethod === 'email' ? 'active' : ''}`}
             >
-              Email & Password
+              ✉️ Email
             </button>
             <button 
               onClick={() => setAuthMethod('google')}
               className={`filter-chip ${authMethod === 'google' ? 'active' : ''}`}
             >
-              Google
-            </button>
-            <button 
-              onClick={() => setAuthMethod('phone')}
-              className={`filter-chip ${authMethod === 'phone' ? 'active' : ''}`}
-            >
-              Phone SMS
+              🌐 Google
             </button>
           </div>
+
+          {/* Phone SMS OTP Auth Workflow */}
+          {authMethod === 'phone' && (
+            <div>
+              {!confirmationResult ? (
+                <form onSubmit={handleSendPhoneOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+                    Enter your phone number to receive a 6-digit WhatsApp SMS OTP verification code:
+                  </p>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* Country Code Select */}
+                    <div style={{
+                      backgroundColor: 'var(--bg-primary)', borderRadius: '8px',
+                      padding: '8px 10px', display: 'flex', alignItems: 'center',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      <Globe size={16} style={{ color: 'var(--text-secondary)', marginRight: '6px' }} />
+                      <select 
+                        value={countryCode} 
+                        onChange={(e) => setCountryCode(e.target.value)}
+                        style={{
+                          background: 'none', border: 'none', color: 'var(--text-primary)',
+                          fontSize: '14px', outline: 'none', cursor: 'pointer'
+                        }}
+                      >
+                        {COUNTRY_CODES.map((c) => (
+                          <option key={c.code} value={c.code} style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                            {c.code} ({c.country})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Phone Input */}
+                    <div style={{
+                      flex: 1, backgroundColor: 'var(--bg-primary)', borderRadius: '8px',
+                      padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      <Phone size={18} style={{ color: 'var(--accent)' }} />
+                      <input 
+                        type="tel" 
+                        placeholder="Phone Number"
+                        required
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-primary)', outline: 'none', width: '100%', fontSize: '14.5px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                      backgroundColor: 'var(--accent)', color: '#111b21', border: 'none',
+                      borderRadius: '8px', padding: '12px', fontWeight: 600, fontSize: '14.5px',
+                      cursor: 'pointer', marginTop: '4px', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: '8px'
+                    }}
+                  >
+                    {loading ? 'Sending OTP Code...' : 'Request OTP Verification Code'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: '14px', fontWeight: 500 }}>Verify Phone Number</p>
+                    <p style={{ fontSize: '13px', color: 'var(--accent)', marginTop: '2px' }}>
+                      Sent 6-digit OTP to {countryCode} {phoneNumber}
+                    </p>
+                  </div>
+
+                  {/* 6-Digit OTP Box */}
+                  <div style={{
+                    backgroundColor: 'var(--bg-primary)', borderRadius: '10px',
+                    padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px',
+                    border: '1px solid var(--accent)'
+                  }}>
+                    <KeyRound size={20} style={{ color: 'var(--accent)' }} />
+                    <input 
+                      type="text" 
+                      maxLength={6}
+                      placeholder="Enter 6-digit OTP (e.g. 123456)"
+                      required
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--text-primary)',
+                        outline: 'none', width: '100%', fontSize: '18px', letterSpacing: '4px',
+                        fontWeight: 600, textAlign: 'center'
+                      }}
+                    />
+                  </div>
+
+                  <button 
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                      backgroundColor: 'var(--accent)', color: '#111b21', border: 'none',
+                      borderRadius: '8px', padding: '12px', fontWeight: 600, fontSize: '14.5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {loading ? 'Verifying Code...' : 'Verify OTP & Sign In'}
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                    <button 
+                      type="button"
+                      onClick={() => setConfirmationResult(null)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                    >
+                      Change Number
+                    </button>
+
+                    <button 
+                      type="button"
+                      disabled={resendTimer > 0}
+                      onClick={handleSendPhoneOtp}
+                      style={{
+                        background: 'none', border: 'none',
+                        color: resendTimer > 0 ? 'var(--text-muted)' : 'var(--accent)',
+                        cursor: resendTimer > 0 ? 'default' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '4px'
+                      }}
+                    >
+                      <RotateCcw size={12} /> {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
 
           {/* Email / Password Form */}
           {authMethod === 'email' && (
@@ -278,66 +478,7 @@ export const AuthModal = ({ onClose }) => {
             </div>
           )}
 
-          {/* Phone SMS Form */}
-          {authMethod === 'phone' && (
-            <div>
-              {!confirmationResult ? (
-                <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-primary)', borderRadius: '8px', padding: '10px 12px', gap: '10px' }}>
-                    <Phone size={18} style={{ color: 'var(--text-secondary)' }} />
-                    <input 
-                      type="tel" 
-                      placeholder="+91 98765 43210"
-                      required
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-primary)', outline: 'none', flex: 1, fontSize: '14px' }}
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    style={{
-                      backgroundColor: 'var(--accent)', color: '#111b21', border: 'none',
-                      borderRadius: '8px', padding: '10px', fontWeight: 600, fontSize: '14px',
-                      cursor: 'pointer', marginTop: '6px'
-                    }}
-                  >
-                    {loading ? 'Sending SMS...' : 'Send SMS Verification Code'}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--bg-primary)', borderRadius: '8px', padding: '10px 12px', gap: '10px' }}>
-                    <KeyRound size={18} style={{ color: 'var(--text-secondary)' }} />
-                    <input 
-                      type="text" 
-                      placeholder="Enter 6-digit OTP"
-                      required
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-primary)', outline: 'none', flex: 1, fontSize: '14px' }}
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    style={{
-                      backgroundColor: 'var(--accent)', color: '#111b21', border: 'none',
-                      borderRadius: '8px', padding: '10px', fontWeight: 600, fontSize: '14px',
-                      cursor: 'pointer', marginTop: '6px'
-                    }}
-                  >
-                    {loading ? 'Verifying...' : 'Verify OTP Code'}
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* User Status / Logout Option */}
+          {/* User Sign Out option if signed in */}
           {user.uid && (
             <button 
               onClick={handleSignOut}
@@ -348,7 +489,7 @@ export const AuthModal = ({ onClose }) => {
                 marginTop: '10px'
               }}
             >
-              <LogOut size={16} /> Sign Out ({user.email || user.name})
+              <LogOut size={16} /> Sign Out ({user.phone || user.email || user.name})
             </button>
           )}
         </div>
