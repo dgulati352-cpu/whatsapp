@@ -18,10 +18,12 @@ import {
   X, 
   Trash2, 
   Star,
-  Download
+  Download,
+  Smartphone,
+  ShieldCheck
 } from 'lucide-react';
 
-export const ChatArea = () => {
+export const ChatArea = ({ onOpenAuthModal }) => {
   const { 
     activeContact, 
     activeMessages, 
@@ -34,7 +36,8 @@ export const ChatArea = () => {
     startCall,
     setMediaPreview,
     currentWallpaper,
-    wallpapersList
+    wallpapersList,
+    user
   } = useWhatsApp();
 
   const [inputVal, setInputVal] = useState('');
@@ -42,7 +45,6 @@ export const ChatArea = () => {
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   // Auto scroll to latest message
   useEffect(() => {
@@ -63,8 +65,29 @@ export const ChatArea = () => {
           </div>
           <h2 className="empty-chat-title">WhatsApp Web Clone</h2>
           <p className="empty-chat-desc">
-            Send and receive messages seamlessly. Select a chat from the sidebar or click New Chat to start a conversation.
+            Send and receive messages seamlessly. Select a chat from the sidebar or sign in using Phone OTP Authentication.
           </p>
+
+          <button 
+            onClick={onOpenAuthModal}
+            style={{
+              marginTop: '24px',
+              backgroundColor: 'var(--accent)',
+              color: '#111b21',
+              border: 'none',
+              borderRadius: '24px',
+              padding: '12px 24px',
+              fontSize: '15px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              boxShadow: 'var(--shadow-md)'
+            }}
+          >
+            <Smartphone size={20} /> Sign In with Phone Number OTP
+          </button>
         </div>
       </main>
     );
@@ -134,6 +157,16 @@ export const ChatArea = () => {
         </div>
 
         <div className="chat-header-actions">
+          {/* Phone OTP Login Quick Trigger */}
+          <button 
+            className="icon-btn"
+            onClick={onOpenAuthModal}
+            title="Phone OTP Login"
+            style={{ color: 'var(--accent)' }}
+          >
+            <ShieldCheck size={20} />
+          </button>
+
           {/* Video Call Button */}
           <button 
             className="icon-btn"

@@ -48,7 +48,7 @@ const MainAppLayout = () => {
       />
 
       {/* Main Chat Conversation View */}
-      <ChatArea />
+      <ChatArea onOpenAuthModal={() => setShowAuthModal(true)} />
 
       {/* Slide-out Drawer for Profile & Settings */}
       {drawerMode && (
