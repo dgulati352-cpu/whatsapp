@@ -16,6 +16,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "whatsapp-2eebe-9b95d",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -28,8 +29,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "storage": {
-    "rules": "storage.rules"
   }
 }
